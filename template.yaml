@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Dual-Target Translation ETL Pipeline
+
+Resources:
+
+  RawTranslationsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "raw-translations-${AWS::AccountId}-${AWS::Region}"
+
+  ProcessedTranslationsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "processed-translations-${AWS::AccountId}-${AWS::Region}"
+
+  TranslationsDatabase:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+
+  TranslationProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TranslationsDatabase
+          DESTINATION_BUCKET: !Ref ProcessedTranslationsBucket
+      
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub "raw-translations-${AWS::AccountId}-${AWS::Region}"
+        - S3CrudPolicy:
+            BucketName: !Sub "processed-translations-${AWS::AccountId}-${AWS::Region}"
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TranslationsDatabase
+            
+      Events:
+        ExcelUploadEvent:
+          Type: S3
+          Properties:
+            Bucket: !Ref RawTranslationsBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: '.xlsx'
+
+Outputs:
+  RawBucketName:
+    Description: "Upload raw .xlsx files here"
+    Value: !Ref RawTranslationsBucket
+  ProcessedBucketName:
+    Description: "Cleaned .xlsx files will appear here"
+    Value: !Ref ProcessedTranslationsBucket
+  DatabaseName:
+    Description: "DynamoDB Table Name"
+    Value: !Ref TranslationsDatabase

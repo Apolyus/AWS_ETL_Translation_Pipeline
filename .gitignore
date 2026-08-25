@@ -1,0 +1,17 @@
+# AWS SAM CLI build folder
+.aws-sam/
+
+# SAM Configuration (Users should generate their own via sam deploy --guided)
+samconfig.toml
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# OS generated files
+.DS_Store
+Thumbs.db
